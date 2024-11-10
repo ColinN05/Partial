@@ -1,0 +1,12 @@
+[submodule "Partial/Dependencies/glfw"]
+	path = Partial/Dependencies/glfw
+	url = https://github.com/glfw/glfw
+[submodule "Partial/Dependencies/glad"]
+	path = Partial/Dependencies/glad
+	url = https://github.com/ColinN05/Glad
+[submodule "Partial/Dependencies/glm"]
+	path = Partial/Dependencies/glm
+	url = https://github.com/g-truc/glm
+[submodule "Partial/Dependencies/stb"]
+	path = Partial/Dependencies/stb
+	url = https://github.com/nothings/stb
