@@ -105,6 +105,9 @@ namespace Partial
     void FileLoadInt(std::ifstream& file, uint64_t offset, uint32_t count, int32_t* buffer);
     void FileLoadDouble(std::ifstream& file, uint64_t offset, uint32_t count, double* buffer);
 
+    // Saves currently rendered data to a png file
+    void SaveFrameBufferToPNG(const std::string& filename, uint32_t width, uint32_t height);
+
     ////////////////////////////////////////////////////////
     /////// Solution Renderer //////////////////////////////
     ////////////////////////////////////////////////////////
@@ -120,7 +123,9 @@ namespace Partial
         double GetNode(uint32_t i, uint32_t j);
         int32_t RecompileShaders();
 
-        inline GLFWwindow* GetWindow() { return window;  }
+        inline GLFWwindow* GetWindow() { return window; }
+
+        std::string saveDirectory = "SolutionImages";
     private:
         void JumpToFrameRectangle(uint32_t frame);
 
@@ -142,6 +147,7 @@ namespace Partial
         std::vector<double> nodes; // values at nodes
 
         int32_t currentFrame = 0;
+        double currentTime = 0.0;
         std::ifstream solutionFile;
 
         float cameraR, cameraTheta, cameraPhi;

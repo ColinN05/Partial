@@ -69,10 +69,6 @@ project "glfw"
         filter "system:windows"
             systemversion "latest"
             staticruntime "On"
-    
-        -- buildoptions{
-        --     "/MT"
-        -- }
 
         files
         {
@@ -94,7 +90,6 @@ project "glfw"
         { 
             "_GLFW_WIN32",
             "_CRT_SECURE_NO_WARNINGS"
-
         }
 
         filter "configurations:Debug"
@@ -189,7 +184,7 @@ project "Partial"
    links {"glfw", "glad", "stb", "opengl32.lib"}
 
 project "Demo"
-    kind "ConsoleApp"
+   kind "ConsoleApp"
 
    targetdir ("bin/%{prj.name}/%{cfg.longname}")
    objdir ("bin-int/%{prj.name}/%{cfg.longname}")
@@ -206,7 +201,6 @@ project "Demo"
        "Partial/Dependencies/glfw/include",
        "Partial/Dependencies/glad/include",
        "Partial/Dependencies/glm"
-
    }
 
    links {"Partial"}

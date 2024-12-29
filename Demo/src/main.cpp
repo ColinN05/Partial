@@ -3,7 +3,7 @@
 
 double XX(double x, double y)
 {
-    if (x < y)
+    if (sin(x) > 0.0)
     {
         return -0.1;
     }
@@ -28,19 +28,20 @@ int main()
     params.nodesY = 150;
     params.x0 = -1.0f; params.x1 = 1.0f; // domain extent
     params.y0 = -1.0f; params.y1 = 1.0f;
-    params.t1 = 1.0f; // time extent
+    params.t1 = 20.0f; // time extent
     params.XX = XX; // equation coefficients
     params.YY = XX;
     params.TT = TT;
     params.InitialValue = InitialValue; // intial condition
     params.deltaTime = 0.001; // timestep
     params.renderFreq = 10; // number of updates between renders
-    Partial::SolveRectangle(params, "demosolution.psln"); // solve the problem, save to file
+    Partial::SolveRectangle(params, "testdemosolution.psln"); // solve the problem, save to file
 
     ////////////////////// Render the solution ///////////////////////////
     Partial::Renderer::Initialize();
     Partial::Renderer renderer;
-    renderer.LoadSolution("demosolution.psln");
+    renderer.saveDirectory = "DemoSolutionImages"; // directory where images of solutions will be saved
+    renderer.LoadSolution("testdemosolution.psln");
 
     return 0;
 }

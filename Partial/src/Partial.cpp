@@ -2,6 +2,7 @@
 #include <iostream>
 #include <iterator>
 #include "stb_image.h"
+#include "stb_image_write.h"
 
 // Color codes for in-console solution rendering
 #define ANSI_COLOR_RED     "\x1b[31m"
@@ -129,7 +130,7 @@ namespace Partial
 
     void SolveRectangleTimeDependent(const RectangleParams& params, const std::string& outputPath)
     {
-        std::cout << "Solving time dependent problem." << std::endl;
+        std::cout << "Solving time dependent problem:" << std::endl;
 
         std::ofstream outputFile(outputPath, std::ios::binary);
 
@@ -197,36 +198,29 @@ namespace Partial
         while (time < params.t1)
         {
             // update nodes
-            for (uint32_t i = 0; i < params.nodesX; i++)
+
+            // boundary nodes
+            for (int j = 0; j < params.nodesY; j++)
             {
-                for (uint32_t j = 0; j < params.nodesY; j++)
+                y = params.y0 + j * deltaY;
+                nodes[0][j] = params.BCLeft(y);
+                nodes[params.nodesX - 1][j] = params.BCRight(y);
+            }
+            for (int i = 0; i < params.nodesX; i++)
+            {
+                x = params.x0 + i * deltaX;
+                nodes[i][0] = params.BCBottom(x);
+                nodes[i][params.nodesY - 1] = params.BCTop(x);
+            }
+
+            // non boundary nodes
+            for (uint32_t i = 1; i < params.nodesX-1; i++)
+            {
+                for (uint32_t j = 1; j < params.nodesY-1; j++)
                 {
                     x = params.x0 + i * deltaX;
                     y = params.y0 + j * deltaY;
 
-                    // boundary nodes
-                    if (i == 0)
-                    {
-                        nodes[i][j] = params.BCLeft(y);
-                        continue;
-                    }
-                    else if (i == params.nodesX - 1)
-                    {
-                        nodes[i][j] = params.BCRight(y);
-                        continue;
-                    }
-                    else if (j == 0)
-                    {
-                        nodes[i][j] = params.BCBottom(x);
-                        continue;
-                    }
-                    else if (j == params.nodesY - 1)
-                    {
-                        nodes[i][j] = params.BCTop(x);
-                        continue;
-                    }
-
-                    // non boundary nodes
                     double XX, XY, YY, X, Y, TT, T;
                     XX = params.XX(x,y);
                     XY = params.XY(x,y); 
@@ -262,6 +256,9 @@ namespace Partial
                         FileAddDouble(outputFile,nodes[i][j]);
                     }
                 }
+
+                std::cout << '\r';
+                std::cout << (uint32_t)(100.0 * time / params.t1) << "% complete.";
            }
 
             nodesOld2 = nodesOld1;
@@ -270,6 +267,7 @@ namespace Partial
             time += params.deltaTime;
             iteration++;
         }
+        std::cout << std::endl;
     }
 
     std::vector<double> SolveTridiagonal(std::vector<double> diagonal, std::vector<double> below, std::vector<double> above, std::vector<double> vec)
@@ -333,25 +331,56 @@ namespace Partial
         file.read((char*)buffer, count * sizeof(double));
     }
 
+    void SaveFrameBufferToPNG(const std::string& filename, uint32_t width, uint32_t height)
+    {
+        // image pixel data
+        std::vector<unsigned char> pixels(width * height * 3);
+
+        // read pixel data from framebuffer
+        glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
+
+        // vertically flip image
+        for (int y = 0; y < height / 2; ++y) 
+        {
+            for (int x = 0; x < width * 3; ++x) 
+            {
+                std::swap(pixels[(y * width * 3) + x], pixels[((height - 1 - y) * width * 3) + x]);
+            }
+        }
+
+        // save the image to a PNG file
+        if (stbi_write_png(filename.c_str(), width, height, 3, pixels.data(), width * 3)) 
+        {
+            std::cout << "Image saved to " << filename << std::endl;
+        }
+        else 
+        {
+            std::cerr << "Failed to save the image." << std::endl;
+        }
+    }
+
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     GLFWwindow* Renderer::window;
 
     void Renderer::Initialize()
     {
+        // Initialize GLFW
         if (!glfwInit())
-            printf("Error: Failed to initialize GLFW.\n");
+        {
+            std::cout << "Error: GLFW did not initialize!" << std::endl;
+        }
 
-        window = glfwCreateWindow(900,900, "Solution", NULL, NULL);
+        window = glfwCreateWindow(1000,1000, "Solution", NULL, NULL);
         if (!window)
         {
             glfwTerminate();
-            printf("Error: Failed to create window.\n");
+            std::cout << "Error: Failed to create window!" << std::endl;
         }
 
-        /* Make the window's context current */
         glfwMakeContextCurrent(window);
 
+        // Load OpenGL
         int status = gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
         if (!status)
         {
@@ -416,6 +445,9 @@ namespace Partial
         mode = (Mode)solutionType;
 
         uint32_t numFrames = 0;
+        double deltaTime = 0.0;
+        double t0 = 0.0, t1 = 0.0;
+        uint32_t renderFreq = 1;
 
         switch(solutionType)
         {
@@ -434,6 +466,10 @@ namespace Partial
             nodes.reserve(rectangle.nodesX * rectangle.nodesY);
 
             numFrames = (rectangle.t1 - rectangle.t0) / (rectangle.deltaTime * rectangle.renderFreq);
+            deltaTime = rectangle.deltaTime;
+            renderFreq = rectangle.renderFreq;
+            t0 = rectangle.t0;
+            t1 = rectangle.t1;
             break;
         case Mode::CurvilinearMesh:
             break;
@@ -442,21 +478,37 @@ namespace Partial
         }
 
         // Render loop
+        double renderDeltaTime = 0.0f;
+        double prevTime = glfwGetTime();
+        currentTime = t0;
         while (!glfwWindowShouldClose(window))
         {
-            JumpToFrame(currentFrame);
             if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
             {
-                std::cout << currentFrame << std::endl;
-                currentFrame++;
+                currentTime += renderDeltaTime;
+
+                // save image of frame if holding shift key
+                if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS && currentFrame > 0)
+                {
+                    int windowWidth, windowHeight;
+                    glfwGetWindowSize(window, &windowWidth, &windowHeight);
+                    std::cout << std::string("Saving image to ") + saveDirectory + std::string("/frame") + std::to_string(currentFrame) + std::string(".png") << '\n';
+                    SaveFrameBufferToPNG(saveDirectory + std::string("/frame") + std::to_string(currentFrame) + std::string(".png"), windowWidth, windowHeight);
+                }
             }
             if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
             {
-                currentFrame--;
+                currentTime -= renderDeltaTime;
             }
-            if (currentFrame < 0) currentFrame = 0;
-            if (currentFrame > numFrames - 1) currentFrame = numFrames - 1;
+            if (currentTime < t0) currentTime = t0;
+            if (currentTime > t1) currentTime = t1-deltaTime;
+            currentFrame = (int32_t)((currentTime - t0) / (deltaTime * renderFreq));
+            
             Update();
+            JumpToFrame(currentFrame);
+
+            renderDeltaTime = glfwGetTime() - prevTime;
+            prevTime = glfwGetTime();
         }
 
         return 0;
@@ -483,20 +535,20 @@ namespace Partial
         // position of data in solution file
         uint64_t offset = 4 + 8 + 8 + 8 + 8 + 4 + 4 + 8 + 8 + 8 + 4 + (uint64_t)rectangle.nodesX * (uint64_t)rectangle.nodesY * sizeof(double) * (uint64_t)frame;
 
-        FileLoadDouble(solutionFile, offset, rectangle.nodesX * rectangle.nodesY, &nodes[0]);
         nodes.resize(rectangle.nodesX * rectangle.nodesY);
-
+        FileLoadDouble(solutionFile, offset, rectangle.nodesX * rectangle.nodesY, &nodes[0]);
 
         // vertex data for solution graph
         std::vector<float> graphVertices(rectangle.nodesX * rectangle.nodesY * 2 * 3 * 7, 0.0f);
+
+        float x, y;
+        float deltaX, deltaY;
 
         // fill graphVertices
         for (int i = 0; i < rectangle.nodesX-1; i++)
         {
             for (int j = 0; j < rectangle.nodesY; j++)
             {
-                float x, y;
-                float deltaX, deltaY;
                 deltaX = (rectangle.x1 - rectangle.x0) / (rectangle.nodesX - 1.0f);
                 deltaY = (rectangle.y1 - rectangle.y0) / (rectangle.nodesY - 1.0f);
                 x = rectangle.x0 + i * deltaX;
@@ -513,7 +565,6 @@ namespace Partial
                         x + deltaX, (float)GetNode(i + 1,j), y, normal.x, normal.y, normal.z, (float)GetNode(i + 1,j), // 2
                         x + deltaX, (float)GetNode(i + 1,j + 1), y + deltaY, normal.x, normal.y, normal.z, (float)GetNode(i + 1,j + 1) // 3
                     });
-
 
                 //// Triangle 2
                 normal = glm::cross(
@@ -557,15 +608,17 @@ namespace Partial
         glfwSwapBuffers(window);
         glfwPollEvents();
 
-        //glBlendFunc(GL_SCALE_BY_ONE_HALF_NV, GL_ONE_MINUS_SRC_ALPHA);
-
         if (glfwGetKey(window, GLFW_KEY_S))
         {
-            cameraR *= 1.01f;
+            cameraR *= 1.01;
         }
         if (glfwGetKey(window, GLFW_KEY_W))
         {
-            cameraR /= 1.01f;
+            cameraR /= 1.001f;
+            if (cameraR < 2.1f)
+            {
+                cameraR = 2.1f;
+            }
         }
         if (glfwGetKey(window, GLFW_KEY_UP))
         {
